@@ -1,0 +1,66 @@
+esphome:
+  name: esp_display
+  platform: ESP32
+  board: esp-wrover-kit
+
+wifi:
+  ssid: "YOUR_WIFI_SSID"
+  password: "YOUR_WIFI_PASSWORD"
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+sdcard:
+  cs_pin: GPIO5
+  # Ensure your SD card is formatted correctly, ESPHome supports FAT32
+  format: FAT32
+
+display:
+  - platform: ili9341
+    model: TFT_2.4
+    cs_pin: GPIO33
+    dc_pin: GPIO25
+    reset_pin: GPIO32
+    led_pin: GPIO39
+    rotation: 0
+    update_interval: 16ms
+    
+# Define the touch screen (not used in this example, but defined for completeness)
+xpt2046:
+  cs_pin: GPIO33
+  irq_pin: GPIO36
+  update_interval: 50ms
+
+# Setup for the DAC audio output
+output:
+  - platform: ledc
+    pin: GPIO26
+    id: dac_output
+
+# Example of playing a simple tone on boot for testing
+    on_boot:
+      then:
+        - output.set_level:
+            id: dac_output
+            level: 50%
+        - delay: 1s
+        - output.turn_off: dac_output
+
+# Placeholder for your BMP playback logic
+# You'll need custom components or scripts to handle GIF-to-BMP sequence playback
+
+fonts:
+  - file: "fonts/Roboto-Regular.ttf"
+    id: font
+    size: 14
+

@@ -1,0 +1,268 @@
+// #include <Arduino.h>
+// #define AUDIO_FILENAME "/44100_u16le.pcm"
+// //  #define FPS 30
+// //  #define MJPEG_FILENAME "/220_30fps.mjpeg"
+// // #define MJPEG_BUFFER_SIZE (220 * 176 * 2 / 4)
+// #define FPS 15
+// #define MJPEG_FILENAME "/320_15fps.mjpeg"
+// #define MJPEG_BUFFER_SIZE (320 * 240 * 2 / 4)
+// #define READ_BUFFER_SIZE 2048
+
+
+// #include <WiFi.h>
+// #include <SPI.h>
+// #include <SD.h>
+// #include "Audio.h"
+
+// // define SD pins
+// #define PIN_MISO 19
+// #define PIN_MOSI 23
+// #define PIN_SCK  18
+// #define PIN_SS   5
+
+// // Audio output
+// // Audio audio(true, I2S_DAC_CHANNEL_LEFT_EN);
+
+// #include <Arduino_GFX_Library.h>
+// #define TFT_BRIGHTNESS 128
+// #define TFT_BL 21
+// Arduino_DataBus *bus = new Arduino_ESP32SPI(2 /* DC */, 15 /* CS */, 14 /* SCK */, 13 /* MOSI */, 12 /* MISO */);
+// Arduino_GFX *gfx = new Arduino_ILI9341(bus, GFX_NOT_DEFINED /* RST */, 1 /* rotation */);
+
+// #include "MjpegClass.h"
+// static MjpegClass mjpeg;
+
+// File vFile;
+
+// uint8_t *mjpeg_buf;
+
+// bool isPlaying = false;
+// unsigned long nextFrameTime = 0;
+// const int frameDelay = 1000 / FPS; // Calculate delay based on desired FPS
+
+// // SPIClass spiSD(VSPI); // Use VSPI hardware SPI bus
+
+// void setup()
+// {
+//     WiFi.mode(WIFI_OFF);
+//     Serial.begin(115200);
+
+//     // Init Video
+//     gfx->begin();
+//     gfx->fillScreen(BLACK);
+
+//     ledcAttachPin(TFT_BL, 1);     // assign TFT_BL pin to channel 1
+//     ledcSetup(1, 12000, 8);       // 12 kHz PWM, 8-bit resolution
+//     ledcWrite(1, TFT_BRIGHTNESS); // brightness 0 - 255
+
+//     // Initialize custom SPI for SD
+//     SPI.begin(PIN_SCK, PIN_MISO, PIN_MOSI); // Init SPI bus
+//     // Init SD card
+//     if (!SD.begin(PIN_SS)) /* SPI bus mode */
+//     {
+//         Serial.println(F("ERROR: SD card mount failed!"));
+//         gfx->println(F("ERROR: SD card mount failed!"));
+//     }
+//     else {
+//     Serial.println(F("SD card mount succeeded!"));
+//     }
+
+//     bool open_audio_succeeded;
+
+//     // // Setup audio and 
+//     // audio.forceMono(true);
+//     // audio.setVolume(10);
+//     // do
+//     // {
+//     //     // Connect to file on SD card
+//     //     open_audio_succeeded = audio.connecttoFS(SD, "test.wav");     
+//     //     delay(500);
+//     //     Serial.println("Retrying");
+//     // } while (!open_audio_succeeded);
+//     // Serial.println("Audio file open succeeded");
+     
+//     vFile = SD.open(MJPEG_FILENAME);
+//     if (!vFile || vFile.isDirectory())
+//     {
+//     Serial.println(F("ERROR: Failed to open " MJPEG_FILENAME " file for reading"));
+//     gfx->println(F("ERROR: Failed to open " MJPEG_FILENAME " file for reading"));
+//     }
+//     else {
+//     Serial.println(F("Video file opened successfully"));
+//     }
+
+//     mjpeg_buf = (uint8_t *)malloc(MJPEG_BUFFER_SIZE);
+//     if (!mjpeg_buf)
+//     {
+//         Serial.println(F("mjpeg_buf malloc failed!"));
+//     }
+//     else {
+//     Serial.println(F("mjpeg_buf malloc succeeded!"));
+//     }
+
+//     mjpeg.setup(vFile, mjpeg_buf, (Arduino_TFT *)gfx, true);
+//               Serial.println(F("Mjpeg setup done"));
+
+//     isPlaying = true;
+//     nextFrameTime = millis() + frameDelay;
+// }
+
+// void loop() {
+//     if (vFile.available() && isPlaying) 
+//     {
+//         Serial.println(F("Playing..." + millis()));
+
+//         // audio.loop();
+
+//         if (millis() >= nextFrameTime) {
+//             // Assuming mjpeg.readMjpegBuf() and mjpeg.drawJpg() handle reading and drawing one frame
+//             mjpeg.readMjpegBuf(); // Read next frame buffer
+//             mjpeg.drawJpg(); // Draw the frame
+//             nextFrameTime += frameDelay;
+//         }
+//     }
+//     else 
+//     {
+
+//         // End of video file or error reading
+//         Serial.println("Ending playback or file not available");
+
+//         isPlaying = false;
+//         vFile.close();
+
+//         delay(10000);
+//         Serial.println("Playback completed or error encountered, entering sleep mode.");
+//         ledcDetachPin(TFT_BL);
+//         gfx->displayOff();
+//         esp_deep_sleep_start();
+//     }
+//     yield();
+// }
+
+#include <Arduino.h>
+#define FPS 15
+#define MJPEG_FILENAME "/320_15fps.mjpeg"
+#define MJPEG_BUFFER_SIZE (320 * 240 * 2 / 4)
+#define READ_BUFFER_SIZE 2048
+
+
+#include <WiFi.h>
+#include <SPI.h>
+#include <SD.h>
+#include "Audio.h"
+
+// define SD pins
+#define PIN_MISO 19
+#define PIN_MOSI 23
+#define PIN_SCK  18
+#define PIN_SS   5
+
+#include <Arduino_GFX_Library.h>
+#define TFT_BRIGHTNESS 128
+#define TFT_BL 21
+Arduino_DataBus *bus = new Arduino_ESP32SPI(2 /* DC */, 15 /* CS */, 14 /* SCK */, 13 /* MOSI */, 12 /* MISO */);
+Arduino_GFX *gfx = new Arduino_ILI9341(bus, GFX_NOT_DEFINED /* RST */, 1 /* rotation */);
+
+#include "MjpegClass.h"
+static MjpegClass mjpeg;
+
+File vFile;
+
+static unsigned long lastFrameTime = 0;
+static int frameCount = 0;
+
+SPIClass spiSD(VSPI); // Use VSPI hardware SPI bus
+
+
+void setup()
+{
+  WiFi.mode(WIFI_OFF);
+  Serial.begin(115200);
+
+  // Init Video
+  gfx->begin();
+  gfx->fillScreen(BLACK);
+
+#ifdef TFT_BL
+  ledcAttachPin(TFT_BL, 1);     // assign TFT_BL pin to channel 1
+  ledcSetup(1, 12000, 8);       // 12 kHz PWM, 8-bit resolution
+  ledcWrite(1, TFT_BRIGHTNESS); // brightness 0 - 255
+#endif
+
+  // Initialize custom SPI for SD
+  spiSD.begin(PIN_SCK, PIN_MISO, PIN_MOSI, PIN_SS);
+  // Init SD card
+  if (!SD.begin(PIN_SS, spiSD, 80000000)) /* SPI bus mode */
+  {
+    Serial.println(F("ERROR: SD card mount failed!"));
+    gfx->println(F("ERROR: SD card mount failed!"));
+  }
+    else
+    {
+        yield(); // After initializing SD card, give control back to the system
+        
+        vFile = SD.open(MJPEG_FILENAME);
+        if (!vFile || vFile.isDirectory())
+        {
+            Serial.println(F("ERROR: Failed to open " MJPEG_FILENAME " file for reading"));
+            gfx->println(F("ERROR: Failed to open " MJPEG_FILENAME " file for reading"));
+        }
+        else
+        {
+            // uint8_t *aBuf = (uint8_t *)malloc(2940);
+            uint8_t *aBuf = (uint8_t *)malloc(5880);
+            if (!aBuf)
+            {
+                Serial.println(F("aBuf malloc failed!"));
+            }
+            else
+            {
+                uint8_t *mjpeg_buf = (uint8_t *)malloc(MJPEG_BUFFER_SIZE);
+                if (!mjpeg_buf)
+                {
+                    Serial.println(F("mjpeg_buf malloc failed!"));
+                }
+                else
+                {
+                    Serial.println(F("PCM audio MJPEG video start"));
+                    mjpeg.setup(vFile, mjpeg_buf, (Arduino_TFT *)gfx, true);
+                    Serial.println(F("Mjpeg setup done"));
+
+                    yield(); // Allows other system tasks to proceed
+                    
+                    
+                    Serial.println(F("Going into replay loop"));
+                }
+            }
+        }
+    }
+}
+  
+
+
+void loop()
+{
+    if (!vFile.available()) {
+        // If the video file is not available, or playback is finished, reset or handle accordingly
+        Serial.println(F("Video playback finished or file not available."));
+        // Optionally, reset playback or go to sleep mode
+        return;
+    }
+
+    unsigned long currentTime = millis();
+    if (currentTime - lastFrameTime >= (1000 / FPS)) {
+        lastFrameTime = currentTime;
+
+        // Read and display a frame
+        if (mjpeg.readMjpegBuf()) {
+        mjpeg.drawJpg();
+        frameCount++;
+        } else {
+        Serial.println(F("Failed to read or draw a frame."));
+        }
+    }
+
+    // Place additional code here to run concurrently with video playback
+
+    yield(); // Ensure smooth multitasking
+}

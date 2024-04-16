@@ -1,0 +1,214 @@
+//
+// CYD (Cheap Yellow Display) GIF example
+//
+// #include <bb_captouch.h>
+#include <bb_spi_lcd.h>
+#include <AnimatedGIF.h>
+// #define GIF_NAME earth_128x128
+
+#include <SPI.h>
+#include <SD.h>
+#include "FS.h"
+
+#include "Audio.h"
+
+
+uint8_t *pFrameBuffer;
+
+char *fileName = "/test.gif";
+
+#define LCD DISPLAY_CYD
+
+#define SD_CS_PIN 5
+#define MOSI_PIN 23
+#define SCK_PIN 18
+#define MISO_PIN 19
+
+// 3.5" 320x480 LCD w/capacitive touch
+#ifdef CYD_35C
+#define LCD DISPLAY_CYD_35
+#define TOUCH_SDA 33
+#define TOUCH_SCL 32
+#define TOUCH_INT 21
+#define TOUCH_RST 25
+#endif
+
+#ifdef CYD_28C
+// 2.8" ESP32 LCD board with the GT911 touch controller
+#define TOUCH_SDA 33
+#define TOUCH_SCL 32
+#define TOUCH_INT 21
+#define TOUCH_RST 25
+#define LCD DISPLAY_CYD
+#endif
+
+#ifdef CYD_128C
+// 1.28" ESP32-C3 round LCD board with the CST816D touch controller
+#define TOUCH_SDA 4
+#define TOUCH_SCL 5
+#define TOUCH_INT 0
+#define TOUCH_RST 1
+#define QWIIC_SDA 21
+#define QWIIC_SCL 20
+#define LCD DISPLAY_CYD_128
+#endif
+
+AnimatedGIF gif;
+// BBCapTouch bbct;
+BB_SPI_LCD lcd;
+int iOffX, iOffY;
+
+// file for AnimatedGIF lib
+File f;
+
+bool loopGIF = true;
+
+// Audio output
+Audio audio(true, I2S_DAC_CHANNEL_LEFT_EN);
+bool audioSucceeded = false;
+
+// Declaration of the audioLoopTask function
+void audioLoopTask(void * parameter);
+
+// Draw callback from GIF decoder
+//
+// called once for each line of the current frame
+// MCUs with very little RAM would have to test for disposal methods, transparent pixels
+// and translate the 8-bit pixels through the palette to generate the final output.
+// The code for MCUs with enough RAM is much simpler because the AnimatedGIF library can
+// generate "cooked" pixels that are ready to send to the display
+
+void GIFDraw(GIFDRAW *pDraw)
+{
+  if (pDraw->y == 0) { // set the memory window when the first line is rendered
+    lcd.setAddrWindow(iOffX + pDraw->iX, iOffY + pDraw->iY, pDraw->iWidth, pDraw->iHeight);
+  }
+  // For all other lines, just push the pixels to the display
+  lcd.pushPixels((uint16_t *)pDraw->pPixels, pDraw->iWidth, DRAW_TO_LCD | DRAW_WITH_DMA);
+} /* GIFDraw() */
+
+static void * GIFOpenFile(const char *fname, int32_t *pSize)
+{
+  //log_d("GIFOpenFile( %s )\n", fname );
+  f = SD.open(fname);
+  if (f) {
+    *pSize = f.size();
+    return (void *)&f;
+  }
+  return NULL;
+} /* GIFOpenFile() */
+
+
+static void GIFCloseFile(void *pHandle)
+{
+  File *f = static_cast<File *>(pHandle);
+  if (f != NULL)
+     f->close();
+}
+
+
+int32_t GIFReadFile(GIFFILE *pFile, uint8_t *pBuf, int32_t iLen)
+{
+    int32_t iBytesRead;
+    iBytesRead = iLen;
+    File *f = static_cast<File *>(pFile->fHandle);
+    // Note: If you read a file all the way to the last byte, seek() stops working
+    if ((pFile->iSize - pFile->iPos) < iLen)
+       iBytesRead = pFile->iSize - pFile->iPos - 1; // <-- ugly work-around
+    if (iBytesRead <= 0)
+       return 0;
+    iBytesRead = (int32_t)f->read(pBuf, iBytesRead);
+    pFile->iPos = f->position();
+    return iBytesRead;
+} /* GIFReadFile() */
+
+
+int32_t GIFSeekFile(GIFFILE *pFile, int32_t iPosition)
+{ 
+  int i = micros();
+  File *f = static_cast<File *>(pFile->fHandle);
+  f->seek(iPosition);
+  pFile->iPos = (int32_t)f->position();
+  i = micros() - i;
+//  Serial.printf("Seek time = %d us\n", i);
+  return pFile->iPos;
+} /* GIFSeekFile() */
+
+void setup() {
+  Serial.begin(115200);
+
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SD_CS_PIN);
+  if (!SD.begin(SD_CS_PIN, SPI, 80000000)) {
+    Serial.println("SD card init failed!");
+    while (1); // SD initialisation failed so wait here
+  }
+  Serial.println("SD Card init success!");
+
+  gif.begin(BIG_ENDIAN_PIXELS);
+  lcd.begin(LCD);
+  lcd.fillScreen(TFT_BLACK);
+  // lcd.setTextColor(TFT_GREEN, TFT_BLACK);
+  // lcd.setFont(FONT_12x16);
+  // lcd.setCursor(0, 0);
+  // lcd.println("GIF + Touch Test");
+  // lcd.println("Touch to pause/unpause");
+  delay(3000);
+
+  // Setup audio and 
+  audio.forceMono(true);
+  audio.setVolume(21);
+  do
+  {
+    // Connect to file on SD card
+    audioSucceeded = audio.connecttoFS(SD, "test.wav");
+    delay(500);
+    Serial.println("Retrying");
+  } while (!audioSucceeded);
+  Serial.println("Audio file open succeeded");
+
+  // Create a task that runs on core 0
+  xTaskCreatePinnedToCore(
+    audioLoopTask,   /* Task function */
+    "AudioLoopTask", /* Name of the task */
+    10000,           /* Stack size in words */
+    NULL,            /* Task input parameter */
+    1,               /* Priority of the task */
+    NULL,            /* Task handle */
+    0);              /* Core where the task should run */
+
+} /* setup() */
+
+void loop() {
+
+
+  int w, h;
+
+  if (loopGIF && gif.open(fileName, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw)) {
+    w = gif.getCanvasWidth();
+    h = gif.getCanvasHeight();
+    Serial.printf("Successfully opened GIF; Canvas size = %d x %d\n", w, h);
+    pFrameBuffer = (uint8_t *)heap_caps_malloc(w*(h+2), MALLOC_CAP_8BIT);
+  
+    while (loopGIF) {
+      gif.setDrawType(GIF_DRAW_COOKED); // we want the library to generate ready-made pixels
+      gif.setFrameBuf(pFrameBuffer);
+      iOffX = (lcd.width() - w)/2;
+      iOffY = (lcd.height() - h)/2;
+      while (gif.playFrame(true, NULL)) {
+        // do stuff while gif frame is being shown
+      }
+      gif.reset();
+      gif.close();
+      loopGIF = false;
+    }
+  }
+  yield();
+}
+
+// Function that will be executed as a task
+void audioLoopTask(void * parameter) {
+  for(;;) { // Infinite loop
+    audio.loop();
+    yield();
+  }
+}
