@@ -113,7 +113,7 @@ bool loopGIF()
 bool resetGIF()
 {
     gif.reset();
-    lcd.fillScreen(TFT_BLACK);
+    // lcd.fillScreen(TFT_BLACK);
     heap_caps_free(pFrameBuffer);
     gif.close();
     return true;

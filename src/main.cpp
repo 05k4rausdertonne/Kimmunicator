@@ -1,14 +1,15 @@
 //
 // CYD (Cheap Yellow Display) GIF example
 //
+
 // #include <bb_captouch.h>
 #include <bb_spi_lcd.h>
 #include <AnimatedGIF.h>
-// #define GIF_NAME earth_128x128
 
 #include <SPI.h>
 #include <SD.h>
 #include "FS.h"
+
 
 #include <vector>
 #include <algorithm> // For std::shuffle
@@ -29,7 +30,12 @@ char *spash_screen_wav = "/spash_screen.wav";
 #define SCK_PIN 18
 #define MISO_PIN 19
 
+#define UP_PIN 22
+#define DOWN_PIN 27
+
 bool audioSucceeded = false;
+
+bool buttonPressed = false;
 
 std::vector<String> listGIFFiles(const char* directory) {
   File root = SD.open(directory);
@@ -55,6 +61,9 @@ std::vector<String> listGIFFiles(const char* directory) {
 void setup() {
   Serial.begin(115200);
   // randomSeed(analogRead(0));
+
+  pinMode(DOWN_PIN, INPUT_PULLUP);
+  pinMode(UP_PIN, INPUT_PULLUP);
 
   SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SD_CS_PIN);
   if (!SD.begin(SD_CS_PIN, SPI, 80000000)) {
@@ -105,6 +114,11 @@ void setup() {
     yield();
   }
 
+  while(digitalRead(UP_PIN) == HIGH)
+  {
+    yield();
+  }
+
   resetGIF();
   
   if(!openGIF((String(subDir) + "/" + selectedGIF).c_str()))
@@ -122,10 +136,10 @@ void setup() {
 
 // TODO: look into new example in AnimatedGIF
 
-void loop() {
+void loop() {  
   if (loopGIF())
   {
-    // do stuff while gif os playing
+    // do stuff while gif is playing
   }
   else
   {
