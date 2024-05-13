@@ -18,11 +18,9 @@
 #include "audioTask.h"
 #include "gifUtils.h"
 
-char *subDir = "/wade_messages";
+String sub_dir = "/wade_messages";
 
-char *spash_screen_gif = "/spash_screen.gif";
-char *spash_screen_wav = "/spash_screen.wav";
-
+String spash_screen_path = "/spash_screen";
 
 // define SD pins
 #define SD_CS_PIN 5
@@ -32,6 +30,11 @@ char *spash_screen_wav = "/spash_screen.wav";
 
 #define UP_PIN 22
 #define DOWN_PIN 27
+
+#define VIDEO_FORMAT ".gif"
+#define AUDIO_FORMAT ".wav"
+
+// TODO: Add config stuff
 
 bool audioSucceeded = false;
 
@@ -50,12 +53,61 @@ std::vector<String> listGIFFiles(const char* directory) {
   }
   File file = root.openNextFile();
   while (file) {
-    if (String(file.name()).endsWith(".gif")) {
+    if (String(file.name()).endsWith(VIDEO_FORMAT)) {
       files.push_back(String(file.name()));
     }
     file = root.openNextFile();
   }
   return files;
+}
+
+String selectRandomVideo(String path)
+{
+  auto gifFiles = listGIFFiles(path.c_str());
+  if (gifFiles.empty()) {
+    Serial.println("No "+(String)VIDEO_FORMAT+" files found");
+    return "";
+  }
+  
+  Serial.println("found " + String(gifFiles.size()) + " files");
+
+  // Shuffle the list to randomize which file is played
+  int randomIndex = random(gifFiles.size());
+
+  String selectedGIF = gifFiles.at(randomIndex);
+  String selected_message = gifFiles.at(randomIndex).substring(0, selectedGIF.lastIndexOf('.'));
+  Serial.println("randomly selected message: " + selected_message);
+  return selected_message;
+} 
+
+void play_video(String path)
+{
+  Serial.println("Playing Video " + path);
+  if(!openGIF((path + VIDEO_FORMAT).c_str()))
+  {
+    Serial.println("Video file open failed");
+  }
+  Serial.println("Video file open succeeded");
+
+  if(!audioConnecttoFS(SD, (path + AUDIO_FORMAT).c_str()))
+  {
+    Serial.println("Audio file open failed");
+  }
+  Serial.println("Audio file open succeeded");
+
+  while(loopGIF())
+  {
+    if(digitalRead(DOWN_PIN) == LOW)
+    {
+      esp_deep_sleep_start();
+    }
+    yield();
+  }
+}
+void reset_playback()
+{
+  // audioStopSong();
+  resetGIF();
 }
 
 void setup() {
@@ -72,79 +124,32 @@ void setup() {
   }
   Serial.println("SD Card init succeeded!");
 
-  auto gifFiles = listGIFFiles(subDir);
-  if (gifFiles.empty()) {
-    Serial.println("No .gif files found");
-    return;
-  }
-  
-  Serial.println("found " + String(gifFiles.size()) + " files");
-
-  // Shuffle the list to randomize which file is played
-  int randomIndex = random(gifFiles.size());
-
-  // Assuming the first file is now a randomly selected one
-  String selectedGIF = gifFiles.at(randomIndex);
-  String selectedWAV = selectedGIF.substring(0, selectedGIF.lastIndexOf('.')) + ".wav";
-  Serial.println("randomly selected message: " + selectedGIF);
+  String selected_path_one = sub_dir + "/" + selectRandomVideo(sub_dir);
 
   initGIF();
-  // lcd.setTextColor(TFT_GREEN, TFT_BLACK);
-  // lcd.setFont(FONT_12x16);
-  // lcd.setCursor(0, 0);
-  // lcd.println("Test");
 
   // Setup audio
   audioInit();
 
-  if(!openGIF(spash_screen_gif))
-  {
-    Serial.println("GIF file open failed");
-  }
-  Serial.println("GIF file open succeeded");
-
-  if(!audioConnecttoFS(SD, spash_screen_wav))
-  {
-    Serial.println("Audio file open failed");
-  }
-  Serial.println("Audio file open succeeded");
-
-  while(loopGIF())
-  {
-    yield();
-  }
+  play_video(spash_screen_path);
 
   while(digitalRead(UP_PIN) == HIGH)
   {
     yield();
   }
 
-  resetGIF();
-  
-  if(!openGIF((String(subDir) + "/" + selectedGIF).c_str()))
-  {
-    Serial.println("GIF file open failed");
-  }
-  Serial.println("GIF file open succeeded");
-
-  if(!audioConnecttoFS(SD, (String(subDir) + "/" + selectedWAV).c_str()))
-  {
-    Serial.println("Audio file open failed");
-  }
-  Serial.println("Audio file open succeeded");
+  reset_playback();
+  play_video(selected_path_one);
+  reset_playback();
+  Serial.println("Done playing, going to sleep.");
+  esp_deep_sleep_start();
 }
 
 // TODO: look into new example in AnimatedGIF
+// TODO: write issue about not being able to run more than two videos in sequence without crash
 
+// do nothing in loop()
 void loop() {  
-  if (loopGIF())
-  {
-    // do stuff while gif is playing
-  }
-  else
-  {
-    Serial.println("Done playing, entering deep sleep");
-    esp_deep_sleep_start();
-  }
   yield();
+  // TODO: Add random timer for reboot 
 }

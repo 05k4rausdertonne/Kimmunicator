@@ -99,7 +99,7 @@ bool openGIF(const char *fileName)
 
 bool initGIF()
 {
-    gif.begin(BIG_ENDIAN_PIXELS);
+    gif.begin(GIF_PALETTE_RGB565_BE);
     lcd.begin(LCD);
     lcd.fillScreen(TFT_BLACK);
     return true;
@@ -113,7 +113,7 @@ bool loopGIF()
 bool resetGIF()
 {
     gif.reset();
-    // lcd.fillScreen(TFT_BLACK);
+    lcd.fillScreen(TFT_BLACK);
     heap_caps_free(pFrameBuffer);
     gif.close();
     return true;

@@ -17,7 +17,7 @@ struct audioMessage{
     FS*         fs;  // Pointer to the file system object
 } audioTxMessage, audioRxMessage;
 
-enum : uint8_t { SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOFS };
+enum : uint8_t { SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOFS, STOP_SONG };
 
 QueueHandle_t audioSetQueue = NULL;
 QueueHandle_t audioGetQueue = NULL;
@@ -68,8 +68,14 @@ void audioTask(void *parameter) {
                 audioTxTaskMessage.cmd = GET_VOLUME;
                 audioTxTaskMessage.ret = audio.getVolume();
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
-            }
-            else{
+            } 
+            else if (audioRxTaskMessage.cmd == STOP_SONG) {
+                audioTxTaskMessage.cmd = STOP_SONG;
+                audio.stopSong(); // Stop the currently playing song
+                audioTxTaskMessage.ret = 1;
+                xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            } 
+            else {
                 log_i("error");
             }
         }
@@ -84,7 +90,7 @@ void audioInit() {
     xTaskCreatePinnedToCore(
         audioTask,             /* Function to implement the task */
         "audioplay",           /* Name of the task */
-        5000,                  /* Stack size in words */
+        6144,                  /* Stack size in words */
         NULL,                  /* Task input parameter */
         2 | portPRIVILEGE_BIT, /* Priority of the task */
         NULL,                  /* Task handle. */
@@ -125,6 +131,12 @@ bool audioConnecttoFS(FS& fs, const char* path){
     audioTxMessage.cmd = CONNECTTOFS;
     audioTxMessage.txt = path;
     audioTxMessage.fs = &fs;  // Pass the address of the file system object
+    audioMessage RX = transmitReceive(audioTxMessage);
+    return RX.ret;
+}
+
+bool audioStopSong() {
+    audioTxMessage.cmd = STOP_SONG;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
 }
