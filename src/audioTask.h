@@ -17,7 +17,7 @@ struct audioMessage{
     FS*         fs;  // Pointer to the file system object
 } audioTxMessage, audioRxMessage;
 
-enum : uint8_t { SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOFS, STOP_SONG };
+enum : uint8_t { SET_VOLUME, GET_VOLUME, CONNECTTOHOST, CONNECTTOFS, STOP_SONG, TERMINATE_TASK};
 
 QueueHandle_t audioSetQueue = NULL;
 QueueHandle_t audioGetQueue = NULL;
@@ -74,8 +74,12 @@ void audioTask(void *parameter) {
                 audio.stopSong(); // Stop the currently playing song
                 audioTxTaskMessage.ret = 1;
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
+            } else if (audioRxTaskMessage.cmd == TERMINATE_TASK) {
+                log_i("Terminating audio task...");
+                vTaskDelete(NULL); // Terminate the current task
             } 
-            else {
+            else 
+            {
                 log_i("error");
             }
         }
@@ -139,4 +143,9 @@ bool audioStopSong() {
     audioTxMessage.cmd = STOP_SONG;
     audioMessage RX = transmitReceive(audioTxMessage);
     return RX.ret;
+}
+
+void audioTerminateTask() {
+    audioTxMessage.cmd = TERMINATE_TASK;
+    transmitReceive(audioTxMessage);
 }
