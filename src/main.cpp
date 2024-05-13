@@ -128,6 +128,10 @@ void go_into_standby()
   Serial.println("Done playing.");
   setCpuFrequencyMhz(80);
   Serial.println("Going into standby.");
+  if (random_sleep <= 0)
+  {
+    esp_deep_sleep_start();
+  }
 }
 
 void parse_config()
@@ -240,7 +244,7 @@ void setup() {
 
 // TODO: write issue about not being able to run more than two videos in sequence without crash
 
-void loop() {  
+void loop() {
   if(millis() >= random_sleep * 1000)
   {
     esp_restart();
